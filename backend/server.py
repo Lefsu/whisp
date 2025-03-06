@@ -1,9 +1,69 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+import os
+from itsdangerous import URLSafeTimedSerializer, BadSignature
+from fastapi import WebSocket, WebSocketDisconnect
 from typing import List
-from fastapi.responses import HTMLResponse
 
 app = FastAPI()
 
+# Configuration pour le cookie de session
+SECRET_KEY = "supersecretkey"  # Change-le pour un secret plus sûr
+serializer = URLSafeTimedSerializer(SECRET_KEY)
+
+# Servir les fichiers statiques dans le dossier ../frontend, à l'exception de chat.html
+app.mount("/frontend", StaticFiles(directory=os.path.join(os.getcwd(), "frontend"), html=True), name="frontend")
+
+# Exemple d'utilisateur
+USERS_DB = {"user": "user", "root": "root"}
+
+# Fonction pour vérifier si l'utilisateur est authentifié
+def get_user_session(request: Request):
+    session_token = request.cookies.get("session_token")
+    if session_token:
+        try:
+            username = serializer.loads(session_token, max_age=60)  # valable 1 min
+            return username
+        except BadSignature:
+            return None
+    return None
+
+@app.get("/", response_class=HTMLResponse)
+async def login_page():
+    with open(os.path.join(os.getcwd(), 'frontend', 'login.html')) as f:
+        return f.read()
+
+@app.post("/login")
+async def login(username: str = Form(...), password: str = Form(...)):
+    if username in USERS_DB and USERS_DB[username] == password:
+        # Générer un token de session
+        session_token = serializer.dumps(username)
+        response = RedirectResponse(url="/chat", status_code=303)
+        response.set_cookie(key="session_token", value=session_token, httponly=True)
+        return response
+    else:
+        return RedirectResponse(url="/login", status_code=303)  # Correction ici
+
+@app.get("/chat", response_class=HTMLResponse)
+async def chat_page(request: Request):
+    # Vérifier la session avant de donner accès à la page de chat
+    username = get_user_session(request)
+    if username:
+        # Charger et afficher la page de chat uniquement si l'utilisateur est authentifié
+        with open(os.path.join(os.getcwd(), 'frontend', 'chat.html')) as f:
+            return f.read()
+    else:
+        # Si l'utilisateur n'est pas authentifié, rediriger vers la page de connexion
+        return RedirectResponse(url="/")
+
+
+
+
+
+
+
+### WebSocket pour le chat
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -30,70 +90,3 @@ async def websocket_endpoint(websocket: WebSocket):
             await manager.broadcast(data)
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-
-@app.get("/", response_class=HTMLResponse)
-def get_chat_page():
-    return """
-    <!DOCTYPE html>
-    <html>
-        <head>
-            <title>Chat WebSocket</title>
-            <style>
-                body {
-                    font-family: Arial, sans-serif;
-                    padding: 20px;
-                    background-color: #f7f7f7;
-                }
-                #chat {
-                    width: 100%;
-                    height: 300px;
-                    border: 1px solid #ccc;
-                    padding: 10px;
-                    background-color: #fff;
-                    overflow-y: scroll;
-                    margin-bottom: 10px;
-                }
-                input[type="text"] {
-                    width: 80%;
-                    padding: 10px;
-                }
-                button {
-                    padding: 10px;
-                }
-            </style>
-        </head>
-        <body>
-            <h2>Chat WebSocket</h2>
-            <div id="chat"></div>
-            <input id="messageInput" type="text" placeholder="Écrire un message..." />
-            <button onclick="sendMessage()">Envoyer</button>
-            <script>
-                let socket = new WebSocket("ws://localhost:50000/ws");
-                let chatDiv = document.getElementById("chat");
-                let messageInput = document.getElementById("messageInput");
-
-                socket.onmessage = function(event) {
-                    let message = event.data;
-                    let messageDiv = document.createElement("div");
-                    messageDiv.textContent = message;
-                    chatDiv.appendChild(messageDiv);
-                    chatDiv.scrollTop = chatDiv.scrollHeight; // Scroll down to the latest message
-                };
-
-                function sendMessage() {
-                    let message = messageInput.value;
-                    if (message.trim() !== "") {
-                        socket.send(message);
-                        messageInput.value = "";
-                    }
-                }
-
-                messageInput.addEventListener("keypress", function(event) {
-                    if (event.key === "Enter") {
-                        sendMessage();
-                    }
-                });
-            </script>
-        </body>
-    </html>
-    """
