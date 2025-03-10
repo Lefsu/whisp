@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whisp - Terminal Chat</title>
+    <style>
+        /* Style global */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background-color: #000000; /* Fond totalement noir */
+            color: #00FF00; /* Texte vert néon, effet terminal */
+            font-family: 'Courier New', monospace; /* Police style terminal */
+            overflow: hidden;
+        }
+
+        /* Conteneur principal */
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Barre de gauche */
+        .left-bar {
+            width: 240px;
+            background-color: #000000; /* Complètement noir */
+            padding: 20px;
+            color: #00FF00;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            height: 100%;
+            border-right: 1px solid #00FF00;
+        }
+
+        .left-bar h1 {
+            font-size: 32px;
+            text-align: center;
+            color: #00FF00;
+            letter-spacing: 2px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        /* Liste des utilisateurs */
+        .user-item {
+            padding: 12px;
+            margin: 12px 0;
+            background-color: #222222;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: 0.3s ease;
+        }
+
+        .user-item:hover {
+            background-color: #333333;
+        }
+
+        /* Fenêtre de chat à droite */
+        .chat-container {
+            flex-grow: 1;
+            background-color: #000000; /* Complètement noir */
+            color: #00FF00; /* Texte vert terminal */
+            padding: 20px;
+            display: none;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .close-chat {
+            cursor: pointer;
+            color: #00FF00;
+            font-size: 30px;
+            left: 1000px; 
+        }
+
+        /* Affichage des messages du chat */
+        .messages {
+            height: calc(100vh - 160px); /* Espace pour la zone de message */
+            overflow-y: auto;
+            white-space: pre-wrap;
+            display: flex;
+            flex-direction: column;
+            padding-right: 5px;
+            margin-bottom: 60px; /* Espace entre le bas de cet élément et les éléments suivants */
+        }
+        .message {
+            padding: 9px;
+            margin: 2px 0;
+            background-color: #222222;
+            border-radius: 8px;
+            font-size: 16px;
+            display: inline-block;
+            word-wrap: break-word;
+        }
+        .message.user {
+            background-color: #00FF00;
+            color: #000000;
+        }
+        .message.other {
+            background-color: #046104;
+            color: #000000;
+        }
+        /* Zone d'envoi de message */
+
+        
+        
+        .input-area {
+            width: 100%; /* La zone d'entrée prend toute la largeur disponible */
+            padding-right: 5px; /* Optionnel, ajustez selon vos besoins */
+            box-sizing: border-box; /* Assurez-vous que le padding est inclus dans la largeur totale */
+        }
+
+        .input-area input {
+            background-color: #000000; /* Complètement noir */
+            color: #00FF00;
+            border: 1px solid #00FF00;
+            padding: 12px;
+            width: 91%; /* Assurez-vous que le champ de texte prend toute la largeur de .input-area */
+            border-radius: 5px;
+            font-size: 16px;
+            text-transform: uppercase;
+            outline: none;
+            font-family: 'Courier New', monospace;
+        }
+
+        .input-area button {
+            background-color: #000000; /* Nouvelle couleur de fond, ici un gris très foncé */
+            color: #00FF00; /* Couleur du texte (vert néon) */
+            border: 2px solid #00FF00; /* Bordure verte */
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+        }
+
+        .input-area button:hover {
+            border: 2px solid #00FF00; /* Bordure change au survol (vert plus clair) */
+        }
+
+        /* Bouton des utilisateurs */
+        .user-button {
+            background-color: #000000; /* Nouvelle couleur de fond, ici un gris très foncé */
+            color: #00FF00; /* Couleur du texte (vert néon) */
+            padding: 12px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 10px;
+        }
+
+        /* Effet au survol */
+        .user-button:hover {
+            border: 1px solid #00FF00; /* Bordure plus claire */
+        }
+
+
+        @keyframes blink {
+            0% {
+                border-color: transparent;
+            }
+            50% {
+                border-color: #00FF00;
+            }
+            100% {
+                border-color: transparent;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Barre de gauche -->
+        <div class="left-bar">
+            <h1>Whisp</h1>
+            
+            <!-- Liste des utilisateurs -->
+            <div class="user-button" onclick="startChat('User1')">User1</div>
+            <div class="user-button" onclick="startChat('User2')">User2</div>
+            <div class="user-button" onclick="startChat('User3')">User3</div>
+        </div>
+
+        <!-- Fenêtre de chat à droite -->
+        <div class="chat-container" id="chat-container">
+            <div class="chat-header">
+                <h3 id="chat-title"></h3>
+                <span class="close-chat" onclick="closeChat()">X</span>
+            </div>
+            <div class="messages" id="messages"></div>
+            <div class="input-area">
+                <input type="text" id="message-input" class="typing" placeholder="Tapez un message..." />
+                <button onclick="sendMessage()" id="sendButton">Envoyer</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('message-input').addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // Empêche le comportement par défaut de créer une nouvelle ligne
+                sendMessage(); // Appelle la fonction pour envoyer le message
+            }
+        });
+
+        document.getElementById('sendButton').addEventListener('click', sendMessage);
+
+        function sendMessage() {
+            const inputField = document.getElementById('message-input');
+            const messageText = inputField.value.trim(); // Récupère le texte du message
+
+            if (messageText) {
+                // Crée un nouvel élément pour afficher le message
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message', 'user');
+                messageElement.textContent = messageText;
+
+                // Ajoute le message dans la zone de messages
+                document.querySelector('.messages').appendChild(messageElement);
+
+                // Réinitialise l'input après l'envoi
+                inputField.value = '';
+                inputField.focus();
+            }
+        }
+
+        let currentChatUser = '';
+
+        // Fonction pour démarrer un chat avec un utilisateur
+        function startChat(userName) {
+            currentChatUser = userName;
+            document.getElementById('chat-title').textContent = userName;
+            document.getElementById('chat-container').style.display = 'flex'; // Affiche la fenêtre de chat
+        }
+
+        // Fonction pour fermer le chat
+        function closeChat() {
+            document.getElementById('chat-container').style.display = 'none'; // Cache le chat
+        }
+
+        // Fonction pour envoyer un message
+        function sendMessage() {
+            const message = document.getElementById('message-input').value;
+            if (message.trim() === '') return; // Ignore si message vide
+
+            // Affiche le message de l'utilisateur
+            const messageContainer = document.createElement('div');
+            messageContainer.classList.add('message', 'user');
+            messageContainer.textContent = message;
+            document.getElementById('messages').appendChild(messageContainer);
+            
+            document.getElementById('message-input').value = ''; // Vide l'input
+            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight; // Défile vers le bas
+        }
+    </script>
+
+</body>
+</html>
