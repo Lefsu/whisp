@@ -213,6 +213,33 @@
                     border-color: transparent;
                 }
             }
+            .logout-container {
+                margin-top: auto; /* Pousse le bouton vers le bas */
+                display: flex;
+                justify-content: center;
+                width: 100%;
+                margin-bottom: 40px;
+            }
+
+            .logout-button {
+                background-color: #000000;
+                color: #00FF00;
+                padding: 12px 10px;
+                border-radius: 10px;
+                cursor: pointer;
+                text-transform: uppercase;
+                font-weight: bold;
+                font-family: 'Courier New', monospace;
+                text-align: center;
+                border: 1px solid #00FF00;
+                width: 100%; /* Pour occuper toute la largeur */
+            }
+
+            .logout-button:hover {
+                background-color: #00FF00;
+                color: #000000;
+            }
+
 
         </style>
     </head>
@@ -236,6 +263,12 @@
                         <span class="close-user" onclick="removeUser(this)">✖</span>
                     </div>
                 </div>
+                <div class="logout-container">
+                    <form action="/logout" method="get">
+                        <button class="logout-button" type="submit">Déconnexion</button>
+                    </form>
+                </div>
+                  
             </div>
             <!-- Fenêtre de chat à droite -->
             <div class="chat-container" id="chat-container">
