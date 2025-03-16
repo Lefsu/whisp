@@ -250,18 +250,12 @@
                 <h1>Whisp</h1>
                 <input type="text" placeholder="Rechercher..." class="search-bar" />
                 <div class="user-list">
-                    <div class="user-container">
-                        <span class="user-button" onclick="startChat('User1')">User1</span>
-                        <span class="close-user" onclick="removeUser(this)">✖</span>
-                    </div>
-                    <div class="user-container">
-                        <span class="user-button" onclick="startChat('User2')">User2</span>
-                        <span class="close-user" onclick="removeUser(this)">✖</span>
-                    </div>
-                    <div class="user-container">
-                        <span class="user-button" onclick="startChat('User3')">User3</span>
-                        <span class="close-user" onclick="removeUser(this)">✖</span>
-                    </div>
+                    {% for contact in contacts %}
+                        <div class="user-container">
+                            <span class="user-button" onclick="startChat('{{ contact.contact_name }}')">{{ contact.contact_name }}</span>
+                            <span class="close-user" onclick="removeUser(this)">✖</span>
+                        </div>
+                    {% endfor %}
                 </div>
                 <div class="logout-container">
                     <form action="/logout" method="get">
