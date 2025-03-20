@@ -339,6 +339,7 @@
                         if (data.removed) {
                             resultMessage.innerHTML = ''; // Effacer tout message d'erreur
                             element.parentElement.remove(); // Supprime l'utilisateur du DOM
+                            closeChat()
                         } else {
                             resultMessage.innerHTML = `Erreur : impossible de supprimer "${query}".`;
                         }
