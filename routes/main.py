@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, insert
 from .database import get_db, engine
-from .models import get_contacts_table, create_contacts_table, User, insert_contact
+from .models import get_contacts_table, create_contacts_table, User, insert_contact, delete_contact
 from .security import get_current_user
 from fastapi import HTTPException
 from sqlalchemy import MetaData
@@ -47,3 +47,23 @@ async def search_user(query: str, request: Request, db: Session = Depends(get_db
     insert_contact(query, username)
     insert_contact(username, query)
     return {"status": "success", "found": True, "query": query}
+
+
+@router.delete("/remove/{query}")
+async def remove_user(query: str, request: Request, db: Session = Depends(get_db)):
+    username = request.cookies.get("session_user")
+    if not username:
+        raise HTTPException(status_code=401, detail="User not authenticated")
+    
+    # Vérifier si l'utilisateur à supprimer existe dans la base de données
+    user = db.query(User).filter(User.identifiant == query).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    
+    if username == query:
+        raise HTTPException(status_code=400, detail="Impossible de se supprimer soi-même de sa liste d'amis")
+    
+    delete_contact(query, username)
+    delete_contact(username, query)
+    
+    return {"status": "success", "removed": True, "query": query}
