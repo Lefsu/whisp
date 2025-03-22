@@ -42,11 +42,54 @@
             </div>
         </div>
         <script>
+let socket = null;
+let currentChatUser = "";
+
+function startChat(userName) {
+    currentChatUser = userName;
+    document.getElementById('chat-title').textContent = userName;
+    document.getElementById('chat-container').style.display = 'flex';
+
+    if (socket) {
+        socket.close();
+    }
+
+    socket = new WebSocket(`ws://${window.location.host}/ws/${userName}`);
+
+    socket.onmessage = function(event) {
+        const messageElement = document.createElement('div');
+        messageElement.classList.add('message', 'received');
+        messageElement.textContent = event.data;
+        document.querySelector('.messages').appendChild(messageElement);
+    };
+
+    socket.onclose = function() {
+        console.log("WebSocket fermé");
+    };
+}
+
+function sendMessage() {
+    const inputField = document.getElementById('message-input');
+    const messageText = inputField.value.trim();
+
+    if (messageText && socket) {
+        socket.send(messageText);
+
+        const messageElement = document.createElement('div');
+        messageElement.classList.add('message', 'user');
+        messageElement.textContent = `Moi: ${messageText}`;
+        document.querySelector('.messages').appendChild(messageElement);
+
+        inputField.value = '';
+        inputField.focus();
+    }
+}
             // Fonction pour fermer le chat
             function closeChat() {
                 document.getElementById('chat-container').style.display = 'none'; // Cache le chat
+                let currentChatUser = '';
             }
-
+            //Fonction de recherche
             document.getElementById('searchInput').addEventListener('keydown', async function(event) {
                 // Vérifie si la touche pressée est "Entrée"
                 if (event.key === 'Enter') {
@@ -88,7 +131,7 @@
                     }
                 }
             });
-
+            //Remove
             async function removeUser(element) {
                 let query = element.previousElementSibling.textContent.trim(); // Récupération du nom d'utilisateur
                 const resultMessage = document.getElementById('resultMessage');
@@ -117,58 +160,15 @@
                     resultMessage.innerHTML = "Une erreur s'est produite lors de la suppression.";
                 }
             }
-
+            //bind message
             document.getElementById('message-input').addEventListener('keydown', function(event) {
                 if (event.key === 'Enter') {
                     event.preventDefault(); // Empêche le comportement par défaut de créer une nouvelle ligne
                     sendMessage(); // Appelle la fonction pour envoyer le message
                 }
             });
-
+            //button message
             document.getElementById('sendButton').addEventListener('click', sendMessage);
-
-            function sendMessage() {
-                const inputField = document.getElementById('message-input');
-                const messageText = inputField.value.trim(); // Récupère le texte du message
-
-                if (messageText) {
-                    // Crée un nouvel élément pour afficher le message
-                    const messageElement = document.createElement('div');
-                    messageElement.classList.add('message', 'user');
-                    messageElement.textContent = messageText;
-
-                    // Ajoute le message dans la zone de messages
-                    document.querySelector('.messages').appendChild(messageElement);
-
-                    // Réinitialise l'input après l'envoi
-                    inputField.value = '';
-                    inputField.focus();
-                }
-            }
-
-            let currentChatUser = '';
-
-            // Fonction pour démarrer un chat avec un utilisateur
-            function startChat(userName) {
-                currentChatUser = userName;
-                document.getElementById('chat-title').textContent = userName;
-                document.getElementById('chat-container').style.display = 'flex'; // Affiche la fenêtre de chat
-            }
-
-            // Fonction pour envoyer un message
-            function sendMessage() {
-                const message = document.getElementById('message-input').value;
-                if (message.trim() === '') return; // Ignore si message vide
-
-                // Affiche le message de l'utilisateur
-                const messageContainer = document.createElement('div');
-                messageContainer.classList.add('message', 'user');
-                messageContainer.textContent = message;
-                document.getElementById('messages').appendChild(messageContainer);
-                
-                document.getElementById('message-input').value = ''; // Vide l'input
-                document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight; // Défile vers le bas
-            }
         </script>
     </body>
 </html>
