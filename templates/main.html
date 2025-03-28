@@ -42,48 +42,79 @@
             </div>
         </div>
         <script>
-let socket = null;
-let currentChatUser = "";
+            let socket = null;
+            let currentChatUser = "";
 
-function startChat(userName) {
-    currentChatUser = userName;
-    document.getElementById('chat-title').textContent = userName;
-    document.getElementById('chat-container').style.display = 'flex';
+            //
+            function startChat(userName) {
+                currentChatUser = userName;
+                document.getElementById('chat-title').textContent = userName;
+                document.getElementById('chat-container').style.display = 'flex';
 
-    if (socket) {
-        socket.close();
-    }
+                if (socket) {
+                    socket.close();
+                }
 
-    socket = new WebSocket(`ws://${window.location.host}/ws/${userName}`);
+                socket = new WebSocket(`ws://${window.location.host}/ws/${userName}`);
 
-    socket.onmessage = function(event) {
-        const messageElement = document.createElement('div');
-        messageElement.classList.add('message', 'received');
-        messageElement.textContent = event.data;
-        document.querySelector('.messages').appendChild(messageElement);
-    };
+                socket.onmessage = function(event) {
+                    const messageElement = document.createElement('div');
+                    messageElement.classList.add('message', 'received');
+                    messageElement.textContent = event.data;
+                    document.querySelector('.messages').appendChild(messageElement);
+                };
 
-    socket.onclose = function() {
-        console.log("WebSocket fermé");
-    };
-}
-
-function sendMessage() {
-    const inputField = document.getElementById('message-input');
-    const messageText = inputField.value.trim();
-
-    if (messageText && socket) {
-        socket.send(messageText);
-
-        const messageElement = document.createElement('div');
-        messageElement.classList.add('message', 'user');
-        messageElement.textContent = `Moi: ${messageText}`;
-        document.querySelector('.messages').appendChild(messageElement);
-
-        inputField.value = '';
-        inputField.focus();
-    }
-}
+                socket.onclose = function() {
+                    console.log("WebSocket fermé");
+                };
+            }
+            //
+            async function encryptMessage(message, key) {
+                const encoder = new TextEncoder();
+                const encodedMessage = encoder.encode(message);
+                const iv = window.crypto.getRandomValues(new Uint8Array(12));
+                
+                const cryptoKey = await window.crypto.subtle.importKey(
+                    "raw",
+                    key,
+                    { name: "AES-GCM" },
+                    false,
+                    ["encrypt"]
+                );
+                
+                const encryptedBuffer = await window.crypto.subtle.encrypt(
+                    { name: "AES-GCM", iv: iv },
+                    cryptoKey,
+                    encodedMessage
+                );
+                
+                const encryptedArray = new Uint8Array(encryptedBuffer);
+                const encryptedCombined = new Uint8Array(iv.length + encryptedArray.length);
+                encryptedCombined.set(iv);
+                encryptedCombined.set(encryptedArray, iv.length);
+                
+                return btoa(String.fromCharCode(...encryptedCombined));
+            }
+            //
+            async function sendMessage() {
+                const inputField = document.getElementById('message-input');
+                const messageText = inputField.value.trim();
+                
+                if (messageText && socket) {
+                    const key = window.crypto.getRandomValues(new Uint8Array(32)); // Clé AES 256 bits
+                    const encryptedMessage = await encryptMessage(messageText, key);
+                    
+                    socket.send(encryptedMessage);
+                    
+                    const messageElement = document.createElement('div');
+                    messageElement.classList.add('message', 'user');
+                    messageElement.textContent = `Moi: ${messageText}`;
+                    document.querySelector('.messages').appendChild(messageElement);
+                    
+                    inputField.value = '';
+                    inputField.focus();
+                }
+            }
             // Fonction pour fermer le chat
             function closeChat() {
                 document.getElementById('chat-container').style.display = 'none'; // Cache le chat
@@ -144,7 +175,7 @@ function sendMessage() {
 
                     if (response.ok) {
                         const data = await response.json();
-
+ 
                         if (data.removed) {
                             resultMessage.innerHTML = ''; // Effacer tout message d'erreur
                             element.parentElement.remove(); // Supprime l'utilisateur du DOM

@@ -4,6 +4,7 @@ from routes import database
 from routes.login import router as login_router
 from routes.main import router as main_router
 from routes.register import router as register_router
+import os
 
 app = FastAPI()
 
@@ -16,3 +17,7 @@ app.include_router(main_router)
 app.include_router(register_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+if __name__ == "__main__":
+    os.system("uvicorn app:app --reload --port 15000")
+    
