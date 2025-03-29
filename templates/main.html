@@ -37,7 +37,7 @@
                 <div class="messages" id="messages"></div>
                 <div class="input-area">
                     <input type="text" id="message-input" class="typing" placeholder="Tapez un message..." />
-                    <button onclick="sendMessage()" id="sendButton">Envoyer</button>
+                    <button id="sendButton">Envoyer</button>
                 </div>
             </div>
         </div>
@@ -146,23 +146,23 @@
             }
             //
             async function sendMessage() {
-                const inputField = document.getElementById('message-input');
-                const messageText = inputField.value.trim();
-                
-                if (messageText && socket) {
-                    const encryptedMessage = await encryptMessage(messageText);
-                    const messageElement = document.createElement('div');
-                    messageElement.classList.add('message', 'user');
-                    messageElement.textContent = `Moi: ${messageText} // ${encryptedMessage}`;
-                    document.querySelector('.messages').appendChild(messageElement);
-                    
-                    inputField.value = '';
-                    inputField.focus();  
-                    socket.send(encryptedMessage);
-                    
+    const inputField = document.getElementById('message-input');
+    const messageText = inputField.value.trim();
+    
+    if (messageText && socket) {
+        const encryptedMessage = await encryptMessage(messageText);
+        const messageElement = document.createElement('div');
+        messageElement.classList.add('message', 'user');
+        messageElement.textContent = `Moi: ${messageText} // ${encryptedMessage}`;
+        document.querySelector('.messages').appendChild(messageElement);
+        
+        inputField.value = '';
+        inputField.focus();  
+        socket.send(encryptedMessage);
+    }
+}
 
-                }
-            }
+
             // Fonction pour fermer le chat
             function closeChat() {
                 document.getElementById('chat-container').style.display = 'none'; // Cache le chat
@@ -242,7 +242,8 @@
             //bind message
             document.getElementById('message-input').addEventListener('keydown', function(event) {
                 if (event.key === 'Enter') {
-                    event.preventDefault(); // Empêche le comportement par défaut de créer une nouvelle ligne
+                    event.preventDefault(); // Empêche le comportement par défaut de créer une nouvelle ligne.
+                    console.log('sendMessage ici');
                     sendMessage(); // Appelle la fonction pour envoyer le message
                 }
             });
