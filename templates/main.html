@@ -45,50 +45,14 @@
             let socket = null;
             let currentChatUser = "";
             //
-            // Fonction utilitaire pour convertir une chaîne en buffer
-            function strToArrayBuffer(str) {
-                return new TextEncoder().encode(str);
-            }
-
-            // Fonction utilitaire pour convertir un buffer en chaîne
-            function arrayBufferToStr(buffer) {
-                return new TextDecoder().decode(buffer);
-            }
 
             // Clé statique sous forme de clé cryptographique Web Crypto
             const KEY_MATERIAL = strToArrayBuffer('0123456789abcdef0123456789abcdef');
 
-            async function getKey() {
-                return crypto.subtle.importKey(
-                    "raw", KEY_MATERIAL, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]
-                );
-            }
 
-            // Fonction de chiffrement
-            async function encryptMessage(message) {
-                const key = await getKey();
-                const iv = crypto.getRandomValues(new Uint8Array(12)); // IV aléatoire de 12 octets
-                const salt = crypto.getRandomValues(new Uint8Array(16)); // Salt de 16 octets
-                const encodedMessage = strToArrayBuffer(message);
-                const encryptedBuffer = await crypto.subtle.encrypt(
-                    { name: "AES-GCM", iv: iv }, key, encodedMessage
-                );
-                return btoa(String.fromCharCode(...salt, ...iv, ...new Uint8Array(encryptedBuffer)));
-            }
 
-            // Fonction de déchiffrement
-            async function decryptMessage(encryptedMessage) {
-                const key = await getKey();
-                const data = Uint8Array.from(atob(encryptedMessage), c => c.charCodeAt(0));
-                const salt = data.slice(0, 16);
-                const iv = data.slice(16, 28);
-                const encryptedBuffer = data.slice(28);
-                const decryptedBuffer = await crypto.subtle.decrypt(
-                    { name: "AES-GCM", iv: iv }, key, encryptedBuffer
-                );
-                return arrayBufferToStr(decryptedBuffer);
-            }
-                        
+            
+
             //
             function startChat(userName) {
                 currentChatUser = userName;
@@ -117,7 +81,8 @@
                         }
 
                         // Déchiffrement
-                        const decryptedMessage = await decryptMessage(encryptedMessage);
+                        const key = await getKey();
+                        const decryptedMessage = await decryptMessage(encryptedMessage, key);
                         if (!decryptedMessage) {
                             displayError("Le message déchiffré est vide.");
                             return;
@@ -131,38 +96,74 @@
                     } catch (error) {
                         displayError("Erreur lors du traitement du message : " + error.message);
                     }
-            };
+                };
 
-            function displayError(errorMessage) {
-                const errorElement = document.createElement('div');
-                errorElement.classList.add('message', 'error');
-                errorElement.textContent = "⚠️ " + errorMessage;
-                document.querySelector('.messages').appendChild(errorElement);
-            }
+                function displayError(errorMessage) {
+                    const errorElement = document.createElement('div');
+                    errorElement.classList.add('message', 'error');
+                    errorElement.textContent = "⚠️ " + errorMessage;
+                    document.querySelector('.messages').appendChild(errorElement);
+                }
 
                 socket.onclose = function() {
                     console.log("WebSocket fermé");
                 };
             }
+
             //
             async function sendMessage() {
-    const inputField = document.getElementById('message-input');
-    const messageText = inputField.value.trim();
-    
-    if (messageText && socket) {
-        const encryptedMessage = await encryptMessage(messageText);
-        const messageElement = document.createElement('div');
-        messageElement.classList.add('message', 'user');
-        messageElement.textContent = `Moi: ${messageText} // ${encryptedMessage}`;
-        document.querySelector('.messages').appendChild(messageElement);
-        
-        inputField.value = '';
-        inputField.focus();  
-        socket.send(encryptedMessage);
-    }
-}
-
-
+                const inputField = document.getElementById('message-input');
+                const messageText = inputField.value.trim();
+                
+                if (messageText && socket) {
+                    const key = await getKey();
+                    const encryptedMessage = await encryptMessage(messageText, key);
+                    const messageElement = document.createElement('div');
+                    messageElement.classList.add('message', 'user');
+                    messageElement.textContent = messageText;
+                    console.log(encryptedMessage)
+                    document.querySelector('.messages').appendChild(messageElement);
+                    
+                    inputField.value = '';
+                    inputField.focus();  
+                    socket.send(encryptedMessage);
+                }
+            }
+            //
+            async function getKey() {
+                return crypto.subtle.importKey(
+                    "raw", KEY_MATERIAL, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]
+                );
+            }
+            // Fonction utilitaire pour convertir une chaîne en buffer
+            function strToArrayBuffer(str) {
+                return new TextEncoder().encode(str);
+            }
+            // Fonction utilitaire pour convertir un buffer en chaîne
+            function arrayBufferToStr(buffer) {
+                return new TextDecoder().decode(buffer);
+            }
+            // Fonction de chiffrement
+            async function encryptMessage(message, key) {
+                const iv = crypto.getRandomValues(new Uint8Array(12)); // IV aléatoire de 12 octets
+                const salt = crypto.getRandomValues(new Uint8Array(16)); // Salt de 16 octets
+                const encodedMessage = strToArrayBuffer(message);
+                const encryptedBuffer = await crypto.subtle.encrypt(
+                    { name: "AES-GCM", iv: iv }, key, encodedMessage
+                );
+                return btoa(String.fromCharCode(...salt, ...iv, ...new Uint8Array(encryptedBuffer)));
+            }
+            // Fonction de déchiffrement
+            async function decryptMessage(encryptedMessage, key) {
+                const data = Uint8Array.from(atob(encryptedMessage), c => c.charCodeAt(0));
+                const salt = data.slice(0, 16);
+                const iv = data.slice(16, 28);
+                const encryptedBuffer = data.slice(28);
+                const decryptedBuffer = await crypto.subtle.decrypt(
+                    { name: "AES-GCM", iv: iv }, key, encryptedBuffer
+                );
+                return arrayBufferToStr(decryptedBuffer);
+            }
             // Fonction pour fermer le chat
             function closeChat() {
                 document.getElementById('chat-container').style.display = 'none'; // Cache le chat
