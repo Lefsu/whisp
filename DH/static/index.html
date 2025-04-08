@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Échange DH entre deux utilisateurs</title>
+</head>
+<body>
+    <h2>Diffie-Hellman à deux</h2>
+    <button id="start">Initier l’échange</button>
+    <p id="status">En attente...</p>
+    <script>
+        const socket = new WebSocket("ws://localhost:8000/ws");
+
+        const p = 23n; // À remplacer par un grand nombre pour la prod
+        const g = 5n;
+        const privateKey = BigInt(Math.floor(Math.random() * 1000));
+        const publicKey = modExp(g, privateKey, p);
+
+        let otherPublicKey = null;
+        let exchangeStarted = false;
+
+        function modExp(base, exponent, modulus) {
+            if (modulus === 1n) return 0n;
+            let result = 1n;
+            base = base % modulus;
+            while (exponent > 0) {
+                if (exponent % 2n === 1n) result = (result * base) % modulus;
+                exponent = exponent >> 1n;
+                base = (base * base) % modulus;
+            }
+            return result;
+        }
+
+        async function sha256To32Bits(data) {
+            const encoder = new TextEncoder();
+            const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(data));
+            const bytes = new Uint8Array(hashBuffer);
+            const view = new DataView(bytes.buffer);
+            return view.getUint32(0, false); // big-endian
+        }
+
+        document.getElementById("start").addEventListener("click", () => {
+            if (!exchangeStarted) {
+                socket.send(JSON.stringify({ type: "pubkey", publicKey: publicKey.toString() }));
+                document.getElementById("status").textContent = "Clé publique envoyée.";
+                exchangeStarted = true;
+            }
+        });
+
+        socket.onmessage = async (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === "pubkey") {
+                otherPublicKey = BigInt(data.publicKey);
+                const sharedSecret = modExp(otherPublicKey, privateKey, p);
+                const key32bit = await sha256To32Bits(sharedSecret.toString());
+
+                console.log("[Client] Clé partagée brute :", sharedSecret.toString());
+                console.log("[Client] Clé dérivée 32 bits :", key32bit);
+                document.getElementById("status").textContent = `Clé 32 bits dérivée : ${key32bit}`;
+            }
+        };
+    </script>
+</body>
+</html>
