@@ -1,33 +1,51 @@
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi import APIRouter, WebSocketDisconnect
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-clients = []
 
 @app.get("/")
 async def get():
     return FileResponse("static/index.html", media_type='text/html')
 
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+router = APIRouter()
+active_chats = {}
+
+def get_chat_id(user1: str, user2: str) -> str:
+    return "_".join(sorted([user1, user2]))
+
+@router.websocket("/ws/exchange/{receiver}")
+async def websocket_endpoint(websocket: WebSocket, receiver: str):
     await websocket.accept()
-    clients.append(websocket)
+
+    cookie_header = websocket.headers.get("cookie")
+    sender = None
+    if cookie_header:
+        cookies = {k: v for k, v in (cookie.split("=") for cookie in cookie_header.split("; "))}
+        sender = cookies.get("session_user")
+
+    if not sender:
+        await websocket.close()
+        return
+
+    chat_id = get_chat_id(sender, receiver)
+
+    if chat_id not in active_chats:
+        active_chats[chat_id] = []
+    active_chats[chat_id].append(websocket)
 
     try:
         while True:
             data = await websocket.receive_json()
-
-            # Transmet à l'autre client
-            for client in clients:
-                if client != websocket:
-                    await client.send_json(data)
-
-    except Exception as e:
-        print(f"[Serveur] Erreur ou déconnexion : {e}")
+            for ws in active_chats[chat_id]:
+                if ws != websocket:
+                    await ws.send_json(data)
+    except WebSocketDisconnect:
+        print(f"{sender} disconnected from chat with {receiver}")
     finally:
-        if websocket in clients:
-            clients.remove(websocket)
+        active_chats[chat_id].remove(websocket)
+        if not active_chats[chat_id]:
+            del active_chats[chat_id]

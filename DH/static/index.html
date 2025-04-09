@@ -2,17 +2,30 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Échange DH entre deux utilisateurs</title>
+    <title>Échange Diffie-Hellman entre utilisateurs</title>
 </head>
 <body>
     <h2>Diffie-Hellman à deux</h2>
-    <button id="start">Initier l’échange</button>
+    <button id="start" disabled>Initier l’échange</button>
     <p id="status">En attente...</p>
-    <script>
-        const socket = new WebSocket("ws://localhost:8000/ws");
+    <p id="user">Utilisateur : inconnu</p>
+    <button onclick="setUserName('A')">Je suis A</button>
+    <button onclick="setUserName('B')">Je suis B</button>
 
-        const p = 23n; // À remplacer par un grand nombre pour la prod
-        const g = 5n;
+    <script>
+        let userName = null;
+        let socket = null;
+
+        const p = BigInt("0x" +
+        "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E08" +
+        "8A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD" +
+        "3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E" +
+        "7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899F" +
+        "A5AE9F24117C4B1FE649286651ECE65381FFFFFFFFFFFFFFFF");
+
+        const g = 2n;
+
+
         const privateKey = BigInt(Math.floor(Math.random() * 1000));
         const publicKey = modExp(g, privateKey, p);
 
@@ -20,7 +33,6 @@
         let exchangeStarted = false;
 
         function modExp(base, exponent, modulus) {
-            if (modulus === 1n) return 0n;
             let result = 1n;
             base = base % modulus;
             while (exponent > 0) {
@@ -39,26 +51,51 @@
             return view.getUint32(0, false); // big-endian
         }
 
+        function setUserName(name) {
+            userName = name;
+            const peerName = (name === "A") ? "B" : "A";
+            document.getElementById("user").textContent = `Utilisateur : ${name}`;
+            document.cookie = `session_user=${name}`;
+            document.getElementById("start").disabled = false;
+
+            socket = new WebSocket(`ws://${window.location.host}/ws/exchange/${peerName}`);
+
+            socket.onopen = () => {
+                console.log(`[WebSocket] Connecté en tant que ${name}`);
+            };
+
+            socket.onmessage = async (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === "pubkey") {
+                    otherPublicKey = BigInt(data.publicKey);
+                    console.log("[Client] Clé publique reçue :", otherPublicKey.toString());
+                    const sharedSecret = modExp(otherPublicKey, privateKey, p);
+                    const key32bit = await sha256To32Bits(sharedSecret.toString());
+                    console.log("[Client] Clé partagée :", sharedSecret.toString());
+                    console.log("[Client] Clé dérivée 32 bits :", key32bit);
+                    document.getElementById("status").textContent = `Clé 32 bits dérivée : ${key32bit}`;
+                }
+            };
+
+            socket.onerror = (error) => {
+                console.error("[WebSocket] Erreur :", error);
+                document.getElementById("status").textContent = "Erreur WebSocket.";
+            };
+
+            socket.onclose = () => {
+                console.log("[WebSocket] Connexion fermée.");
+            };
+        }
+
         document.getElementById("start").addEventListener("click", () => {
-            if (!exchangeStarted) {
+            if (!exchangeStarted && socket && socket.readyState === WebSocket.OPEN) {
                 socket.send(JSON.stringify({ type: "pubkey", publicKey: publicKey.toString() }));
                 document.getElementById("status").textContent = "Clé publique envoyée.";
                 exchangeStarted = true;
+            } else if (socket.readyState !== WebSocket.OPEN) {
+                document.getElementById("status").textContent = "Socket non connectée.";
             }
         });
-
-        socket.onmessage = async (event) => {
-            const data = JSON.parse(event.data);
-            if (data.type === "pubkey") {
-                otherPublicKey = BigInt(data.publicKey);
-                const sharedSecret = modExp(otherPublicKey, privateKey, p);
-                const key32bit = await sha256To32Bits(sharedSecret.toString());
-
-                console.log("[Client] Clé partagée brute :", sharedSecret.toString());
-                console.log("[Client] Clé dérivée 32 bits :", key32bit);
-                document.getElementById("status").textContent = `Clé 32 bits dérivée : ${key32bit}`;
-            }
-        };
     </script>
 </body>
 </html>
