@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import inspect, MetaData
 from typing import Dict, List
 from .database import get_db, engine
-from .models import get_contacts_table, create_contacts_table, User, insert_contact, delete_contact
+from .models import get_contacts_table, create_contacts_table, User, insert_contact, delete_contact, update_pubkey
 from .security import get_current_user
 
 metadata = MetaData()
@@ -66,6 +66,25 @@ async def remove_user(query: str, request: Request, db: Session = Depends(get_db
     delete_contact(username, query)
     
     return {"status": "success", "removed": True, "query": query}
+
+
+@router.get("/get_pubkey/{user_to_get}")
+async def get_pubkey(user_to_get: str, db: Session = Depends(get_db)):
+    # Vérifier si l'utilisateur recherché existe dans la base de données
+    user = db.query(User).filter(User.identifiant == user_to_get).first()
+    
+    # Si l'utilisateur n'existe pas, lever une erreur HTTP 404
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+    
+    # Récupérer la clé publique de l'utilisateur
+    pubkey = user.pubkey
+    
+    # Si la clé publique n'existe pas (si elle est None), lever une erreur HTTP 404
+    if not pubkey:
+        raise HTTPException(status_code=404, detail="Clé publique non trouvée")
+    
+    return {"pubkey": pubkey}
 
 
 # Dictionnaire pour stocker les connexions WebSocket actives
