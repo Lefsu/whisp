@@ -43,6 +43,7 @@
         </div>
         <script>
             let socket = null;
+            const messageHistory = {};
             let currentChatUser = "";
             let otherPublicKey = null;
             let exchangeStarted = false;
@@ -56,7 +57,20 @@
                 postPublicKey(publicKey);
             });
 
-        
+            function displayMessageHistory(userName) {
+                const messages = messageHistory[userName] || [];
+                const messagesContainer = document.querySelector('.messages');
+                messagesContainer.innerHTML = ''; // vide l'ancien affichage
+
+                messages.forEach(msg => {
+                    const messageElement = document.createElement('div');
+                    messageElement.classList.add('message', msg.type);
+                    messageElement.textContent = msg.text;
+                    messagesContainer.appendChild(messageElement);
+                });
+            }
+
+
             async function postPublicKey(pubkey) {
                     const resultMessage = document.getElementById('resultMessage');
 
@@ -117,6 +131,7 @@
             }
         
             function startChat(userName) {
+                displayMessageHistory(userName);
                 
                 getPublicKey(userName)
                     .then(() => {
@@ -167,10 +182,11 @@
                             return;
                         }
         
-                        const messageElement = document.createElement('div');
-                        messageElement.classList.add('message', 'received');
-                        messageElement.textContent = decryptedMessage;
-                        document.querySelector('.messages').appendChild(messageElement);
+                        if (!messageHistory[userName]) messageHistory[userName] = [];
+                        messageHistory[userName].push({ type: 'received', text: decryptedMessage });
+
+                        displayMessageHistory(userName);
+
                     } catch (error) {
                         displayError("Erreur lors du traitement du message : " + error.message);
                     }
@@ -194,10 +210,10 @@
         
                 if (messageText && socket) {
                     const encryptedMessage = await encryptMessage(messageText, key);
-                    const messageElement = document.createElement('div');
-                    messageElement.classList.add('message', 'user');
-                    messageElement.textContent = messageText;
-                    document.querySelector('.messages').appendChild(messageElement);
+                    if (!messageHistory[currentChatUser]) messageHistory[currentChatUser] = [];
+                        messageHistory[currentChatUser].push({ type: 'sent', text: messageText });
+                        displayMessageHistory(currentChatUser);
+
         
                     inputField.value = '';
                     inputField.focus();
@@ -229,9 +245,6 @@
                 );
                 key = keyMaterial;
             }
-
-            
-
 
             function strToArrayBuffer(str) {
                 return new TextEncoder().encode(str);
