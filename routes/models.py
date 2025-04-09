@@ -10,6 +10,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     identifiant = Column(String, unique=True, index=True)
     password = Column(String)
+    pubkey= Column(String)
 
 # Création des tables si elles n'existent pas
 Base.metadata.create_all(bind=engine)
@@ -89,6 +90,30 @@ def delete_contact(username: str, contact_name: str):
             print(f"Contact '{contact_name}' introuvable dans la table '{contacts_table_name}'.")
     except SQLAlchemyError as e:
         print(f"Erreur lors de la suppression du contact : {e}")
+        session.rollback()
+    finally:
+        session.close()
+
+# Fonction pour mettre a jour la clé publique
+def update_pubkey(username: str, pubkey: str):
+    users_table_name = "users"  # Remplace par le nom de ta table d'utilisateurs si nécessaire
+    
+    metadata = MetaData()
+    users_table = Table(users_table_name, metadata, autoload_with=engine)
+    session = SessionLocal()
+
+    try:
+        # Met à jour la clé publique de l'utilisateur spécifié
+        update_stmt = users_table.update().where(users_table.c.identifiant == username).values(pubkey=pubkey)
+        result = session.execute(update_stmt)
+        
+        if result.rowcount > 0:
+            session.commit()
+            print(f"Clé publique de l'utilisateur '{username}' mise à jour avec succès.")
+        else:
+            print(f"Utilisateur '{username}' introuvable.")
+    except SQLAlchemyError as e:
+        print(f"Erreur lors de la mise à jour de la clé publique : {e}")
         session.rollback()
     finally:
         session.close()
