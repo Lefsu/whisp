@@ -19,5 +19,6 @@ app.include_router(register_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 if __name__ == "__main__":
-    os.system("uvicorn app:app --reload --port 15000")
+    os.system('ipconfig /all | findstr /C:"Wireless LAN adapter Wi-Fi" /C:"IPv4 Address"')
+    os.system("uvicorn app:app --host 0.0.0.0 --port 15000 --reload")
     
