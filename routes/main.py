@@ -67,6 +67,23 @@ async def remove_user(query: str, request: Request, db: Session = Depends(get_db
     
     return {"status": "success", "removed": True, "query": query}
 
+@router.post("/post_pubkey/{pubkey}")
+async def post_pubkey(pubkey: str, request: Request, db: Session = Depends(get_db)):
+    username = request.cookies.get("session_user")
+    if not username:
+        raise HTTPException(status_code=401, detail="User not authenticated")
+
+    # Vérifier si l'utilisateur recherché existe dans la base de données
+    user = db.query(User).filter(User.identifiant == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    # Mettre à jour la clé publique de l'utilisateur
+    try:
+        update_pubkey(username, pubkey, db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating public key: {str(e)}")
+
 
 @router.get("/get_pubkey/{user_to_get}")
 async def get_pubkey(user_to_get: str, db: Session = Depends(get_db)):
