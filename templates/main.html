@@ -44,51 +44,129 @@
         <script>
             let socket = null;
             let currentChatUser = "";
-            //
+            let otherPublicKey = null;
+            let exchangeStarted = false;
+            var key = null;
+            const p = BigInt("0x" + "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E08" + "8A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD" + "3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E" + "7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899F" + "A5AE9F24117C4B1FE649286651ECE65381FFFFFFFFFFFFFFFF");
+            const g = 2n;
+            const privateKey = BigInt(Math.floor(Math.random() * 1000));
+            const publicKey = modExp(g, privateKey, p);
+            document.addEventListener('DOMContentLoaded', () => {
+                console.log(publicKey);
+                postPublicKey(publicKey);
+            });
 
-            // Clé statique sous forme de clé cryptographique Web Crypto
-            const KEY_MATERIAL = strToArrayBuffer('0123456789abcdef0123456789abcdef');
+        
+            async function postPublicKey(pubkey) {
+                    const resultMessage = document.getElementById('resultMessage');
 
+                    try {
+                        const response = await fetch(`/post_pubkey/${pubkey}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ pubkey: pubkey.toString() })
+                        });
 
+                        if (response.ok) {
+                            resultMessage.innerHTML = 'Clé publique envoyée avec succès.';
+                        } else {
+                            const errorDetail = await response.json();
+                            resultMessage.innerHTML = `Erreur : ${errorDetail.detail || 'Erreur inconnue'}`;
+                        }
+                    } catch (error) {
+                        resultMessage.innerHTML = "Une erreur s'est produite lors de l'envoi de la clé publique.";
+                    }
+            }
 
-            
-
-            //
+            async function getPublicKey(userToGet) {
+                const response = await fetch(`/get_pubkey/${userToGet}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                });
+        
+                if (!response.ok) {
+                    const errorDetail = await response.json();
+                    throw new Error(`Error: ${errorDetail.detail || 'Unknown error'}`);
+                }
+        
+                const data = await response.json();
+                localStorage.setItem('user_pubkey', data.pubkey);
+                console.log('Public key stored:', data.pubkey);
+            }
+        
+            function modExp(base, exponent, modulus) {
+                let result = 1n;
+                base = base % modulus;
+                while (exponent > 0) {
+                    if (exponent % 2n === 1n) result = (result * base) % modulus;
+                    exponent = exponent >> 1n;
+                    base = (base * base) % modulus;
+                }
+                return result;
+            }
+        
+            async function sha256To32Bits(data) {
+                const encoder = new TextEncoder();
+                const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(data));
+                const bytes = new Uint8Array(hashBuffer);
+                const view = new DataView(bytes.buffer);
+                return view.getUint32(0, false); // big-endian
+            }
+        
             function startChat(userName) {
+                
+                getPublicKey(userName)
+                    .then(() => {
+                        const storedPubkey = localStorage.getItem('user_pubkey');
+                        const receivedPubKey = BigInt(storedPubkey);
+                        console.log("[Client] Clé publique reçue :", receivedPubKey.toString());
+        
+                        const sharedSecret = modExp(receivedPubKey, privateKey, p);
+                        sha256To32Bits(sharedSecret.toString())
+                            .then(key32bit => {
+                                console.log("[Client] Clé partagée :", sharedSecret.toString());
+                                console.log("[Client] Clé dérivée 32 bits :", key32bit);
+                                generateCryptoKey(key32bit)
+                            })
+                            .catch(error => {
+                                console.error('Erreur dans la dérivation de la clé 32 bits:', error);
+                            });
+                    })
+                    .catch(error => {
+                        console.error('Failed to get and store public key:', error);
+                    });
+        
                 currentChatUser = userName;
                 document.getElementById('chat-title').textContent = userName;
                 document.getElementById('chat-container').style.display = 'flex';
-
+        
                 if (socket) {
                     socket.close();
                 }
-
+        
                 socket = new WebSocket(`ws://${window.location.host}/ws/${userName}`);
-
-                socket.onmessage = async function(event) {
+        
+                socket.onmessage = async function (event) {
                     try {
                         let encryptedMessage = event.data;
-
-                        // Vérifier si le message contient ":" et séparer le nom d'utilisateur
                         if (encryptedMessage.includes(":")) {
-                            encryptedMessage = encryptedMessage.split(":")[1].trim(); // Prend uniquement le message après ":"
+                            encryptedMessage = encryptedMessage.split(":")[1].trim();
                         }
-
-                        // Vérification que le message est bien en base64
+        
                         if (!/^[A-Za-z0-9+/=]+$/.test(encryptedMessage)) {
-                            displayError("Le message reçu n'est pas un texte base64 valide après extraction : " + encryptedMessage);
+                            displayError("Le message reçu n'est pas un texte base64 valide après extraction.");
                             return;
                         }
-
-                        // Déchiffrement
-                        const key = await getKey();
+        
                         const decryptedMessage = await decryptMessage(encryptedMessage, key);
                         if (!decryptedMessage) {
                             displayError("Le message déchiffré est vide.");
                             return;
                         }
-
-                        // Affichage du message
+        
                         const messageElement = document.createElement('div');
                         messageElement.classList.add('message', 'received');
                         messageElement.textContent = decryptedMessage;
@@ -97,63 +175,82 @@
                         displayError("Erreur lors du traitement du message : " + error.message);
                     }
                 };
-
+        
                 function displayError(errorMessage) {
                     const errorElement = document.createElement('div');
                     errorElement.classList.add('message', 'error');
                     errorElement.textContent = "⚠️ " + errorMessage;
                     document.querySelector('.messages').appendChild(errorElement);
                 }
-
-                socket.onclose = function() {
+        
+                socket.onclose = function () {
                     console.log("WebSocket fermé");
                 };
             }
-
-            //
+        
             async function sendMessage() {
                 const inputField = document.getElementById('message-input');
                 const messageText = inputField.value.trim();
-                
+        
                 if (messageText && socket) {
-                    const key = await getKey();
                     const encryptedMessage = await encryptMessage(messageText, key);
                     const messageElement = document.createElement('div');
                     messageElement.classList.add('message', 'user');
                     messageElement.textContent = messageText;
-                    console.log(encryptedMessage)
                     document.querySelector('.messages').appendChild(messageElement);
-                    
+        
                     inputField.value = '';
-                    inputField.focus();  
+                    inputField.focus();
                     socket.send(encryptedMessage);
                 }
             }
-            //
-            async function getKey() {
-                return crypto.subtle.importKey(
-                    "raw", KEY_MATERIAL, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]
+        
+            async function generateCryptoKey(rawKey) {
+                // Convertir la clé en ArrayBuffer (4 octets)
+                const keyBuffer = new ArrayBuffer(4);
+                const view = new DataView(keyBuffer);
+                view.setUint32(0, rawKey, false);
+
+                // Étendre la clé pour qu'elle ait 128 bits (16 octets)
+                const extendedKeyBuffer = new Uint8Array(16);  // 128 bits = 16 octets
+                const keyArray = new Uint8Array(keyBuffer);
+
+                for (let i = 0; i < 16; i++) {
+                    extendedKeyBuffer[i] = keyArray[i % keyArray.length];  // Répéter la clé pour remplir les 16 octets
+                }
+
+                // Importer la clé étendue en tant que CryptoKey
+                const keyMaterial = await crypto.subtle.importKey(
+                    "raw",
+                    extendedKeyBuffer,  // Utilise le ArrayBuffer de la clé étendue
+                    { name: "AES-GCM" },  // Utilisation de l'algorithme AES-GCM
+                    false,  // La clé ne sera pas exportée
+                    ["encrypt", "decrypt"]  // Permissions sur la clé (ici chiffrement/déchiffrement)
                 );
+                key = keyMaterial;
             }
-            // Fonction utilitaire pour convertir une chaîne en buffer
+
+            
+
+
             function strToArrayBuffer(str) {
                 return new TextEncoder().encode(str);
             }
-            // Fonction utilitaire pour convertir un buffer en chaîne
+        
             function arrayBufferToStr(buffer) {
                 return new TextDecoder().decode(buffer);
             }
-            // Fonction de chiffrement
+        
             async function encryptMessage(message, key) {
-                const iv = crypto.getRandomValues(new Uint8Array(12)); // IV aléatoire de 12 octets
-                const salt = crypto.getRandomValues(new Uint8Array(16)); // Salt de 16 octets
+                const iv = crypto.getRandomValues(new Uint8Array(12));
+                const salt = crypto.getRandomValues(new Uint8Array(16));
                 const encodedMessage = strToArrayBuffer(message);
                 const encryptedBuffer = await crypto.subtle.encrypt(
                     { name: "AES-GCM", iv: iv }, key, encodedMessage
                 );
                 return btoa(String.fromCharCode(...salt, ...iv, ...new Uint8Array(encryptedBuffer)));
             }
-            // Fonction de déchiffrement
+        
             async function decryptMessage(encryptedMessage, key) {
                 const data = Uint8Array.from(atob(encryptedMessage), c => c.charCodeAt(0));
                 const salt = data.slice(0, 16);
@@ -164,40 +261,35 @@
                 );
                 return arrayBufferToStr(decryptedBuffer);
             }
-            // Fonction pour fermer le chat
+        
             function closeChat() {
-                document.getElementById('chat-container').style.display = 'none'; // Cache le chat
-                let currentChatUser = '';
+                document.getElementById('chat-container').style.display = 'none';
+                currentChatUser = '';
             }
-            //Fonction de recherche
-            document.getElementById('searchInput').addEventListener('keydown', async function(event) {
-                // Vérifie si la touche pressée est "Entrée"
+        
+            document.getElementById('searchInput').addEventListener('keydown', async function (event) {
                 if (event.key === 'Enter') {
                     const query = this.value.trim();
                     const resultMessage = document.getElementById('resultMessage');
                     const userList = document.getElementById('userList');
-
+        
                     if (query.length === 0) {
-                        resultMessage.innerHTML = ''; // Clear message when input is empty
+                        resultMessage.innerHTML = '';
                         return;
                     }
-
+        
                     try {
                         const response = await fetch(`/search/${query}`, {
                             method: 'GET',
-                            credentials: 'same-origin', // To include cookies like the session cookie
+                            credentials: 'same-origin',
                         });
-
+        
                         if (response.ok) {
                             const data = await response.json();
-
                             if (data.found) {
-                                resultMessage.innerHTML = ''; // Clear any previous result message
-
-                                // Ajoute l'utilisateur trouvé à la liste
+                                resultMessage.innerHTML = '';
                                 const userDiv = document.createElement('div');
                                 userDiv.classList.add('user-container');
-
                                 window.location.reload();
                             } else {
                                 resultMessage.innerHTML = `Aucun utilisateur trouvé pour "${query}".`;
@@ -211,24 +303,24 @@
                     }
                 }
             });
-            //Remove
+        
             async function removeUser(element) {
-                let query = element.previousElementSibling.textContent.trim(); // Récupération du nom d'utilisateur
+                let query = element.previousElementSibling.textContent.trim();
                 const resultMessage = document.getElementById('resultMessage');
-
+        
                 try {
                     const response = await fetch(`/remove/${query}`, {
                         method: 'DELETE',
-                        credentials: 'same-origin' // Inclut les cookies comme le cookie de session
+                        credentials: 'same-origin'
                     });
-
+        
                     if (response.ok) {
                         const data = await response.json();
- 
+        
                         if (data.removed) {
-                            resultMessage.innerHTML = ''; // Effacer tout message d'erreur
-                            element.parentElement.remove(); // Supprime l'utilisateur du DOM
-                            closeChat()
+                            resultMessage.innerHTML = '';
+                            element.parentElement.remove();
+                            closeChat();
                         } else {
                             resultMessage.innerHTML = `Erreur : impossible de supprimer "${query}".`;
                         }
@@ -240,16 +332,16 @@
                     resultMessage.innerHTML = "Une erreur s'est produite lors de la suppression.";
                 }
             }
-            //bind message
-            document.getElementById('message-input').addEventListener('keydown', function(event) {
+        
+            document.getElementById('message-input').addEventListener('keydown', function (event) {
                 if (event.key === 'Enter') {
-                    event.preventDefault(); // Empêche le comportement par défaut de créer une nouvelle ligne.
-                    console.log('sendMessage ici');
-                    sendMessage(); // Appelle la fonction pour envoyer le message
+                    event.preventDefault();
+                    sendMessage();
                 }
             });
-            //button message
+        
             document.getElementById('sendButton').addEventListener('click', sendMessage);
         </script>
+        
     </body>
 </html>

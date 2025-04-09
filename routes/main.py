@@ -80,7 +80,8 @@ async def post_pubkey(pubkey: str, request: Request, db: Session = Depends(get_d
 
     # Mettre à jour la clé publique de l'utilisateur
     try:
-        update_pubkey(username, pubkey, db)
+        print(f"Clé publique de {username} est {pubkey}")
+        update_pubkey(username, pubkey)  # Passer l'utilisateur complet
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating public key: {str(e)}")
 
