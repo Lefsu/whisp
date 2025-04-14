@@ -112,7 +112,7 @@ def get_chat_id(user1: str, user2: str) -> str:
     """Génère un ID de chat unique basé sur deux utilisateurs"""
     return "_".join(sorted([user1, user2]))
 
-@router.websocket("/ws/{receiver}")
+@router.websocket("/wss/{receiver}")
 async def websocket_endpoint(websocket: WebSocket, receiver: str):
     await websocket.accept()
 
@@ -136,9 +136,9 @@ async def websocket_endpoint(websocket: WebSocket, receiver: str):
     try:
         while True:
             message = await websocket.receive_text()
-            for ws in active_chats[chat_id]:
-                if ws != websocket:
-                    await ws.send_text(f"{sender}: {message}")
+            for wss in active_chats[chat_id]:
+                if wss != websocket:
+                    await wss.send_text(f"{sender}: {message}")
     except WebSocketDisconnect:
         active_chats[chat_id].remove(websocket)
         if not active_chats[chat_id]:

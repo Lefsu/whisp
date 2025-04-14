@@ -162,7 +162,7 @@
                     socket.close();
                 }
         
-                socket = new WebSocket(`ws://${window.location.host}/ws/${userName}`);
+                socket = new WebSocket(`wss://${window.location.host}/wss/${userName}`);
         
                 socket.onmessage = async function (event) {
                     try {
